@@ -4,6 +4,8 @@ ASMSRC := source/asm/start.asm
 ASMOBJ := start.o
 EXEX64 := FOLIAGE.x64.exe
 BINX64 := FOLIAGE.x64.bin
+EXEX86 := FOLIAGE.x86.exe
+BINX86 := FOLIAGE.x86.bin
 
 CFLAGS := -Os -s -fno-asynchronous-unwind-tables
 CFLAGS := $(CFLAGS) -nostdlib -fno-ident -Qn -fno-builtin-memcpy
