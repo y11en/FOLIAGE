@@ -17,7 +17,9 @@ GLOBAL _BEG
 GLOBAL _END
 GLOBAL _GET_BEG
 GLOBAL _GET_END
+
 EXTERN Start
+EXTERN Leave
 
 [SECTION .text$A]
 
@@ -28,13 +30,19 @@ _BEG:
 	push	rsi
 	mov	rsi, rsp
 	and	rsp, 0FFFFFFFFFFFFFFF0h
-	sub	rsp, 32
 
+	sub	rsp, 32
+	mov	rcx, 0x41414141
 	call	Start
+
+	sub	rsp, 32
+	lea	rcx, [rel _BEG]
+	lea	rdx, [rel Leave]
+	sub	rdx, rcx
+	call	Leave
 
 	mov	rsp, rsi
 	pop	rsi
-
 	ret
 
 ;;
@@ -51,8 +59,7 @@ _GET_END:
 	lea	rax, [rel _END]
 	ret
 
-
-[SECTION .text$C]
+[SECTION .text$D]
 
 ;;
 ;; end of shellcode

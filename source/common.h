@@ -71,6 +71,14 @@ typedef struct
 		D_API( SetProcessValidCallTargets );
 	} kb;
 
+	struct
+	{
+		HANDLE	Base;
+
+		D_API( LocalFileTimeToFileTime );
+		D_API( SystemTimeToFileTime );
+	} km;
+
 	PVOID	Buffer;
 	ULONG	Length;
 	ULONG   Protection;

